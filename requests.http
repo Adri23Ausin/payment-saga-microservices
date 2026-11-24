@@ -1,0 +1,37 @@
+# docker compose --profile app up: order 8080, payment 8081, inventory 8082
+
+### Confirmed: alice can pay and everything is in stock
+POST http://localhost:8080/api/v1/orders
+Content-Type: application/json
+
+{"customerId": "alice", "items": [{"sku": "KEYBOARD", "quantity": 1, "unitPrice": 89.90}, {"sku": "MOUSE", "quantity": 2, "unitPrice": 24.50}]}
+
+### Cancelled: bob only has EUR 50
+POST http://localhost:8080/api/v1/orders
+Content-Type: application/json
+
+{"customerId": "bob", "items": [{"sku": "MONITOR", "quantity": 1, "unitPrice": 199.00}]}
+
+### Refunded and cancelled: carol pays, but there are no webcams
+POST http://localhost:8080/api/v1/orders
+Content-Type: application/json
+
+{"customerId": "carol", "items": [{"sku": "WEBCAM", "quantity": 1, "unitPrice": 59.00}]}
+
+### An order and the steps of its saga (use an id returned above)
+GET http://localhost:8080/api/v1/orders/00000000-0000-0000-0000-000000000000
+
+### A customer's orders
+GET http://localhost:8080/api/v1/orders?customerId=carol
+
+### Balances
+GET http://localhost:8081/api/v1/accounts/carol
+
+### Stock
+GET http://localhost:8082/api/v1/stock
+
+### Restock webcams
+PUT http://localhost:8082/api/v1/stock/WEBCAM
+Content-Type: application/json
+
+{"available": 10}
