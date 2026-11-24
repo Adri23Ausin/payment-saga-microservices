@@ -40,5 +40,74 @@ services:
       timeout: 10s
       retries: 20
 
+  kafka-ui:
+    image: kafbat/kafka-ui:v1.3.0
+    profiles: ["app"]
+    ports:
+      - "${KAFKA_UI_PORT:-8090}:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+  order-service:
+    build:
+      context: .
+      args:
+        SERVICE: order-service
+    image: saga/order-service:latest
+    profiles: ["app"]
+    ports:
+      - "${ORDER_PORT:-8080}:8080"
+    environment:
+      PORT: 8080
+      DB_HOST: postgres
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    depends_on: &infrastructure
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck: &app-healthcheck
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 30s
+
+  payment-service:
+    build:
+      context: .
+      args:
+        SERVICE: payment-service
+    image: saga/payment-service:latest
+    profiles: ["app"]
+    ports:
+      - "${PAYMENT_PORT:-8081}:8080"
+    environment:
+      PORT: 8080
+      DB_HOST: postgres
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    depends_on: *infrastructure
+    healthcheck: *app-healthcheck
+
+  inventory-service:
+    build:
+      context: .
+      args:
+        SERVICE: inventory-service
+    image: saga/inventory-service:latest
+    profiles: ["app"]
+    ports:
+      - "${INVENTORY_PORT:-8082}:8080"
+    environment:
+      PORT: 8080
+      DB_HOST: postgres
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    depends_on: *infrastructure
+    healthcheck: *app-healthcheck
+
 volumes:
   saga-data:
