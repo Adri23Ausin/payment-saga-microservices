@@ -15,4 +15,9 @@ public final class SagaTopics {
 
     private SagaTopics() {
     }
+
+    /** Where events that keep failing, or can't be read, are parked for inspection. */
+    public static String deadLetter(String topic) {
+        return topic + ".DLT";
+    }
 }
