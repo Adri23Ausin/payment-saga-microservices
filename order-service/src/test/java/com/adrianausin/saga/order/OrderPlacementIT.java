@@ -58,6 +58,21 @@ class OrderPlacementIT {
     }
 
     @Test
+    void amountsAlwaysTravelWithTwoDecimals() {
+        MvcTestResult result = place("""
+                {"customerId": "alice", "items": [{"sku": "KEYBOARD", "quantity": 1, "unitPrice": 89.9}]}""");
+        UUID orderId = UUID.fromString(JsonPath.read(body(result), "$.id"));
+
+        try (KafkaConsumer<String, String> consumer = SagaRecords.consumer(SagaTopics.ORDERS)) {
+            List<SagaEvent> events = SagaRecords.newList();
+            await().atMost(Duration.ofSeconds(20)).until(() -> !SagaRecords.eventsOf(consumer, orderId, events).isEmpty());
+            SagaEvent.OrderCreated created = (SagaEvent.OrderCreated) events.getFirst();
+            assertThat(created.total()).hasToString("89.90");
+            assertThat(created.items().getFirst().unitPrice()).hasToString("89.90");
+        }
+    }
+
+    @Test
     void ordersCanBeReadAndListedByCustomer() {
         String customer = "customer-" + UUID.randomUUID();
         UUID orderId = UUID.fromString(JsonPath.read(body(mvc.post().uri("/api/v1/orders").contentType(MediaType.APPLICATION_JSON)

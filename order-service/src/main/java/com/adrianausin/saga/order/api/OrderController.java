@@ -68,8 +68,9 @@ class OrderController {
             @Positive int quantity,
             @DecimalMin("0.01") @Digits(integer = 10, fraction = 2) BigDecimal unitPrice) {
 
+        /** Prices travel with two decimals, whatever the client sent (89.9 or 89.90); validation rules out rounding. */
         Item toItem() {
-            return new Item(sku, quantity, unitPrice);
+            return new Item(sku, quantity, unitPrice.setScale(2));
         }
     }
 }
