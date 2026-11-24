@@ -98,6 +98,39 @@ class PaymentIT {
         assertThat(payments.balance(customer)).hasValueSatisfying(balance -> assertThat(balance).isEqualByComparingTo("69.00"));
     }
 
+    @Test
+    void anOrderThatCannotBeFulfilledIsRefundedOnce() {
+        UUID orderId = UUID.randomUUID();
+        SagaRecords.publish(SagaTopics.ORDERS, orderCreated(orderId, "80.00"), UUID.randomUUID());
+        awaitEvent(orderId);
+
+        UUID rejection = UUID.randomUUID();
+        SagaRecords.publish(SagaTopics.INVENTORY, new SagaEvent.StockRejected(orderId, "KEYBOARD: 1 requested, 0 available"), rejection);
+        SagaRecords.publish(SagaTopics.INVENTORY, new SagaEvent.StockRejected(orderId, "KEYBOARD: 1 requested, 0 available"),
+                UUID.randomUUID());
+
+        assertThat(awaitEvent(orderId)).isEqualTo(
+                new SagaEvent.PaymentRefunded(orderId, new BigDecimal("80.00"), "KEYBOARD: 1 requested, 0 available"));
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> assertThat(payments.findByOrder(orderId))
+                .hasValueSatisfying(payment -> assertThat(payment.status()).isEqualTo(Payment.Status.REFUNDED)));
+        assertThat(payments.balance(customer)).hasValueSatisfying(balance -> assertThat(balance).isEqualByComparingTo("100.00"));
+    }
+
+    @Test
+    void aDeclinedPaymentIsNotRefunded() {
+        UUID orderId = UUID.randomUUID();
+        SagaRecords.publish(SagaTopics.ORDERS, orderCreated(orderId, "500.00"), UUID.randomUUID());
+        awaitEvent(orderId);
+
+        SagaRecords.publish(SagaTopics.INVENTORY, new SagaEvent.StockRejected(orderId, "anything"), UUID.randomUUID());
+        UUID nextOrder = UUID.randomUUID();
+        SagaRecords.publish(SagaTopics.ORDERS, orderCreated(nextOrder, "1.00"), UUID.randomUUID());
+        awaitEvent(nextOrder);
+
+        assertThat(payments.balance(customer)).hasValueSatisfying(balance -> assertThat(balance).isEqualByComparingTo("99.00"));
+        assertThat(payments.findByOrder(orderId)).hasValueSatisfying(payment -> assertThat(payment.status()).isEqualTo(Payment.Status.DECLINED));
+    }
+
     private SagaEvent.OrderCreated orderCreated(UUID orderId, String total) {
         return new SagaEvent.OrderCreated(orderId, customer, ITEMS, new BigDecimal(total));
     }

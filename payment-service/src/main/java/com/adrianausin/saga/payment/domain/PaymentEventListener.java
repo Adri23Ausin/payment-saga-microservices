@@ -23,14 +23,18 @@ class PaymentEventListener {
         this.payments = payments;
     }
 
-    @KafkaListener(topics = SagaTopics.ORDERS)
+    @KafkaListener(topics = {SagaTopics.ORDERS, SagaTopics.INVENTORY})
     @Transactional
     void on(ConsumerRecord<String, SagaEvent> record) {
         if (!processedEvents.firstDelivery(record)) {
             return;
         }
-        if (record.value() instanceof SagaEvent.OrderCreated order) {
-            payments.charge(order);
+        switch (record.value()) {
+            case SagaEvent.OrderCreated order -> payments.charge(order);
+            case SagaEvent.StockRejected rejection -> payments.refund(rejection);
+            default -> {
+                // Not a step of this service
+            }
         }
     }
 }

@@ -61,6 +61,18 @@ public class PaymentRepository {
                 .update();
     }
 
+    /** @return false unless the payment was charged; a refund happens at most once */
+    public boolean markRefunded(UUID orderId, String reason, Instant now) {
+        return jdbc.sql("""
+                        UPDATE payments SET status = 'REFUNDED', reason = :reason, updated_at = :now
+                        WHERE order_id = :order AND status = 'CHARGED'
+                        """)
+                .param("order", orderId)
+                .param("reason", reason)
+                .param("now", Timestamp.from(now))
+                .update() == 1;
+    }
+
     public Optional<Payment> findByOrder(UUID orderId) {
         return jdbc.sql("SELECT * FROM payments WHERE order_id = :order")
                 .param("order", orderId)
